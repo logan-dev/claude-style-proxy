@@ -1,0 +1,25 @@
+{
+  "name": "ollama-anthropic-proxy",
+  "version": "1.0.0",
+  "description": "A Node.js proxy service that converts Anthropic-style API requests to Ollama-compatible format",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "keywords": [
+    "ollama",
+    "anthropic",
+    "proxy",
+    "claude",
+    "api"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "axios": "^1.15.0",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1"
+  }
+}
