@@ -1,0 +1,20 @@
+{
+  "name": "claude-ollama-proxy",
+  "version": "2.0.0",
+  "description": "Production-grade proxy: Anthropic API ↔ Ollama. Full Claude Code support with tools, streaming, multi-turn.",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js",
+    "test": "node test-client.js"
+  },
+  "dependencies": {
+    "dotenv": "^16.6.1",
+    "express": "^4.22.1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "license": "ISC"
+}
