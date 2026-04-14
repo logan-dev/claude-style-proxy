@@ -3,7 +3,7 @@ const axios = require('axios');
 async function testBasicRequest() {
   console.log('=== Testing Basic Request ===\n');
   
-  const response = await axios.post('https://y50q1zqad9nfc8-11434.proxy.runpod.net/v1/chat/completions', {
+  const response = await axios.post('https://m1egks8frqq5sm-11434.proxy.runpod.net/v1/chat/completions', {
     model: 'llama3.3:70b',
     max_tokens: 512,
     system: 'You are a helpful assistant.',
@@ -21,7 +21,7 @@ async function testBasicRequest() {
 async function testToolRequest() {
   console.log('\n=== Testing Tool Request ===\n');
   
-  const response = await axios.post('https://y50q1zqad9nfc8-11434.proxy.runpod.net/v1/chat/completions', {
+  const response = await axios.post('https://m1egks8frqq5sm-11434.proxy.runpod.net/v1/chat/completions', {
     model: 'llama3.3:70b',
     max_tokens: 1024,
     system: 'You are a helpful assistant.',
@@ -55,7 +55,7 @@ async function testToolRequest() {
 async function testStreamingRequest() {
   console.log('\n=== Testing Streaming Request ===\n');
   
-  const response = await axios.post('https://y50q1zqad9nfc8-11434.proxy.runpod.net/v1/chat/completions', {
+  const response = await axios.post('https://m1egks8frqq5sm-11434.proxy.runpod.net/v1/chat/completions', {
     model: 'llama3.3:70b',
     max_tokens: 256,
     stream: true,

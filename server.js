@@ -6,7 +6,7 @@ require('dotenv').config({
 });
 
 const app = express();
-const PORT = process.env.PORT ;
+const PORT = process.env.PORT || 4000; ;
 const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL ;
 const DEFAULT_MODEL = process.env.OLLAMA_MODEL ;
 console.log('Using Ollama Base URL:', OLLAMA_BASE_URL);
