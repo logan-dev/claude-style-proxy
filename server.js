@@ -1,12 +1,16 @@
 const express = require('express');
 const axios = require('axios');
 const cors = require('cors');
-require('dotenv').config();
+require('dotenv').config({
+  path: require('path').resolve(__dirname, '.env')
+});
 
 const app = express();
-const PORT = process.env.PORT || 3000;
-const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
-const DEFAULT_MODEL = process.env.OLLAMA_MODEL || 'llama3.1';
+const PORT = process.env.PORT ;
+const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL ;
+const DEFAULT_MODEL = process.env.OLLAMA_MODEL ;
+console.log('Using Ollama Base URL:', OLLAMA_BASE_URL);
+console.log('Using Default Model:', DEFAULT_MODEL); 
 
 app.use(cors());
 app.use(express.json({ limit: '50mb' }));
@@ -216,6 +220,8 @@ app.post('/v1/messages', async (req, res) => {
       top_p,
       stop_sequences
     } = req.body;
+
+    console.log('Received request:', JSON.stringify(req.body));
     
     // Validate request
     if (!messages || messages.length === 0) {
