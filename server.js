@@ -120,10 +120,37 @@ function flattenContent(content) {
  * we pass tools natively and skip the text instructions.  For /api/chat we always
  * inject instructions.
  */
+// Prepended to every request so models don't refuse agentic tasks
+const AGENTIC_PREAMBLE = `You are an expert software engineering assistant running inside Claude Code.
+You MUST attempt every task using the tools available to you — never refuse or say you cannot help.
+When asked to do something, always try to use a tool rather than just describing what you would do.
+If you are unsure, make a best-effort attempt.`.trim();
+
+// Claude Code's system prompt is huge (thousands of tokens of tool schemas).
+// At 4096 ctx it consumes everything before the user message even arrives.
+// We strip it down to just the first paragraph + any <env> block.
+const SYS_TRIM_THRESHOLD = parseInt(process.env.SYS_TRIM_THRESHOLD || '1500', 10);
+
+function trimClaudeCodeSystemPrompt(raw) {
+  if (!raw || raw.length < SYS_TRIM_THRESHOLD) return raw;
+
+  // Keep the <env> block — has cwd, platform info that's useful
+  const envMatch = raw.match(/<env>([\s\S]*?)<\/env>/);
+  const envBlock = envMatch ? envMatch[0] : '';
+
+  // Keep just the first paragraph (usually the most important instruction)
+  const firstPara = raw.split('\n\n')[0]?.trim() ?? '';
+
+  const kept = [firstPara, envBlock].filter(Boolean).join('\n\n');
+  return kept || raw.slice(0, 600);
+}
+
 function buildSystemPrompt(systemInput, tools, injectToolInstructions = false) {
-  let base = '';
-  if (typeof systemInput === 'string') base = systemInput;
-  else if (Array.isArray(systemInput)) base = systemInput.map(b => b.text ?? '').join('\n');
+  let rawBase = '';
+  if (typeof systemInput === 'string') rawBase = systemInput;
+  else if (Array.isArray(systemInput)) rawBase = systemInput.map(b => b.text ?? '').join('\n');
+  const trimmedSys = trimClaudeCodeSystemPrompt(rawBase);
+  let base = trimmedSys ? `${AGENTIC_PREAMBLE}\n\n${trimmedSys}` : AGENTIC_PREAMBLE;
 
   if (!injectToolInstructions || !tools?.length) return base || undefined;
 
@@ -523,25 +550,60 @@ app.post('/v1/messages', async (req, res) => {
   const ollamaModel   = resolveModel(requestedModel, req.headers['x-ollama-model']);
   rlog.info(`  model resolved: ${requestedModel} → ${ollamaModel}`);
 
+  // ── Log system prompt size for diagnosis ──────────────────────────────────
+  const rawSysLen = typeof system === 'string' ? system.length
+    : Array.isArray(system) ? system.map(b=>b.text??'').join('').length : 0;
+  rlog.info(`  system prompt raw=${rawSysLen} chars  tools=${tools?.length??0}`);
+
+  // ── Strip oversized tool schemas ────────────────────────────────────────────
+  // Ollama serializes full tool JSON schemas into the system prompt internally.
+  // Claude Code sends 20+ tools with large schemas — this alone fills 4096 tokens.
+  // Solution: keep tools but strip their schema 'description' fields down to a
+  // single line so the model knows the tool exists without the token cost.
+  const MAX_TOOLS = parseInt(process.env.MAX_TOOLS || '20', 10);
+  const SLIM_TOOLS = process.env.SLIM_TOOLS !== 'false'; // default true
+  function slimTools(toolList) {
+  if (!toolList?.length) return toolList;
+
+  return toolList.slice(0, MAX_TOOLS).map(t => ({
+    ...t,
+    description: (t.description ?? '').split('\n')[0].slice(0, 120),
+    input_schema: {
+      ...t.input_schema,
+      properties: Object.fromEntries(
+        Object.entries(t.input_schema?.properties ?? {}).map(([key, val]) => [
+          key,
+          {
+            ...val,
+            description: (val.description ?? '').split('\n')[0].slice(0, 80)
+          }
+        ])
+      )
+    }
+  }));
+}
+  const effectiveTools = SLIM_TOOLS ? slimTools(tools) : tools;
+
   // ── Decide if we need fallback tool instructions in the system prompt ───────
   // Ollama's OpenAI-compat layer supports native tools for certain models.
   // We always try native tools first; only inject text instructions if needed.
-  const useNativeTools     = !!(tools?.length);
+  const useNativeTools     = !!(effectiveTools?.length);
   const injectToolHints    = false; // set to true if your model ignores native tools
 
-  const systemPrompt = buildSystemPrompt(system, tools, injectToolHints);
+  const systemPrompt = buildSystemPrompt(system, effectiveTools, injectToolHints);
   const ollamaMessages = convertMessages(messages, systemPrompt);
-  const ollamaTools    = useNativeTools ? convertTools(tools) : undefined;
+  const ollamaTools    = useNativeTools ? convertTools(effectiveTools) : undefined;
 
   const ollamaBody = {
     model:    ollamaModel,
     messages: ollamaMessages,
     stream:   ENABLE_STREAM && stream,
     options:  {
-      ...(temperature   !== undefined && { temperature }),
-      ...(top_p         !== undefined && { top_p }),
-      ...(max_tokens    !== undefined && { num_predict: max_tokens }),
-      ...(stop_sequences?.length      && { stop: stop_sequences }),
+      ...(temperature !== undefined && { temperature }),
+      ...(top_p       !== undefined && { top_p }),
+      num_predict: max_tokens ?? 4096,
+      num_ctx:     parseInt(process.env.NUM_CTX || '32768', 10),
+      ...(stop_sequences?.length && { stop: stop_sequences }),
     },
     ...(ollamaTools && { tools: ollamaTools }),
   };
